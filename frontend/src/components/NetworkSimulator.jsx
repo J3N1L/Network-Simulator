@@ -14,27 +14,59 @@ const NetworkSimulatorUI = () => {
   const [latency, setLatency] = useState("1");
   const [shortestPath, setShortestPath] = useState([]);
   const [packetMessage, setPacketMessage] = useState("");
+  const [gridSizeX, setGridSizeX] = useState(10); // Default grid size (X-axis)
+  const [gridSizeY, setGridSizeY] = useState(10); // Default grid size (Y-axis)
+  const [nodeX, setNodeX] = useState(""); // X-coordinate input
+  const [nodeY, setNodeY] = useState(""); // Y-coordinate input
 
-  // Calculate node positions in a circle
-  const getNodePosition = (index, total) => {
-    const radius = 150;
-    const angle = (2 * Math.PI * index) / total;
+
+
+  // Calculate node positions in grid
+  // Calculate node positions in a fixed 10x10 grid
+  // Calculate node positions in grid
+  const getNodePositionGrid = (x, y) => {
+    const gridSize = 10; // Fixed grid size
+    const spacing = 20 * 2; // 1 unit = 5 cm = 20 pixels, so spacing = 100 pixels
+  
+    // Ensure the coordinates are within bounds
+    if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) {
+      throw new Error("Coordinates must be within the range of 0 to 9.");
+    }
+  
     return {
-      x: 200 + radius * Math.cos(angle),
-      y: 200 + radius * Math.sin(angle),
+      x: x * spacing + spacing / 2, // X-coordinate with padding
+      y: y * spacing + spacing / 2, // Y-coordinate with padding
     };
   };
-
-  // Add a new node
+  
+  // Add a new node with specified X and Y coordinates
   const handleAddNode = () => {
-    if (!newNodeId || nodes.has(newNodeId)) return;
-
+    if (!newNodeId || nodes.has(newNodeId) || nodeX === "" || nodeY === "") {
+      alert("Please provide a unique node ID and valid coordinates.");
+      return;
+    }
+  
+    const x = parseInt(nodeX, 10);
+    const y = parseInt(nodeY, 10);
+  
+    // Validate coordinates
+    if (isNaN(x) || isNaN(y) || x < 0 || x > 9 || y < 0 || y > 9) {
+      alert("Coordinates must be integers between 0 and 9.");
+      return;
+    }
+  
     const nodePositions = new Map(nodes);
-    nodePositions.set(newNodeId, getNodePosition(nodePositions.size, nodePositions.size + 1));
-
-    setNodes(nodePositions);
-    setNewNodeId("");
+    try {
+      nodePositions.set(newNodeId, getNodePositionGrid(x, y));
+      setNodes(nodePositions);
+      setNewNodeId("");
+      setNodeX("");
+      setNodeY("");
+    } catch (error) {
+      alert(error.message);
+    }
   };
+  
 
   // Add a connection between nodes
   const handleAddConnection = () => {
@@ -142,9 +174,45 @@ const NetworkSimulatorUI = () => {
     return connections.map((conn, i) => {
       const source = nodes.get(conn.source);
       const target = nodes.get(conn.target);
-      const isShortestPath =
-        shortestPath.includes(conn.source) && shortestPath.includes(conn.target);
+  
+      return (
+        <g key={i}>
+          <line
+            x1={source.x}
+            y1={source.y}
+            x2={target.x}
+            y2={target.y}
+            stroke="#666" // Regular color for connections
+            strokeWidth="2"
+          />
+          <text
+            x={(source.x + target.x) / 2}
+            y={(source.y + target.y) / 2 - 5}
+            fontSize="12"
+            fill="#000"
+          >
+            {conn.latency}
+          </text>
+        </g>
+      );
+    });
+  };
+  
+  // Highlight only the shortest path connections
+const highlightShortestPath = () => {
+  return connections.map((conn, i) => {
+    const source = nodes.get(conn.source);
+    const target = nodes.get(conn.target);
 
+    // Check if this connection is part of the shortest path
+    const isShortestPath =
+      shortestPath.includes(conn.source) &&
+      shortestPath.includes(conn.target) &&
+      (shortestPath.indexOf(conn.source) < shortestPath.indexOf(conn.target) ||
+        shortestPath.indexOf(conn.target) < shortestPath.indexOf(conn.source));
+
+    // Render only the highlighted connections for shortest path
+    if (isShortestPath) {
       return (
         <g key={i}>
           <line
@@ -165,8 +233,10 @@ const NetworkSimulatorUI = () => {
           </text>
         </g>
       );
-    });
-  };
+    }
+    return NULL; // Skip rendering if not part of the shortest path
+  });
+};
 
   return (
     <div className="p-4">
@@ -175,20 +245,34 @@ const NetworkSimulatorUI = () => {
           <CardTitle>Network Simulator</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <Label>Node ID</Label>
+          <div className="grid grid-cols-2 gap-4 mb-4">            
+          <div>
+              <Label>Node ID and Coordinates</Label>
               <div className="flex gap-2">
                 <Input
                   value={newNodeId}
                   onChange={(e) => setNewNodeId(e.target.value)}
                   placeholder="Enter node ID"
                 />
+                <Input
+                  type="number"
+                  value={nodeX}
+                  onChange={(e) => setNodeX(e.target.value)}
+                  placeholder="X (0-9)"
+                  className="w-24"
+                />
+                <Input
+                  type="number"
+                  value={nodeY}
+                  onChange={(e) => setNodeY(e.target.value)}
+                  placeholder="Y (0-9)"
+                  className="w-24"
+                />
                 <Button onClick={handleAddNode}>
                   <Plus className="mr-2" /> Add Node
                 </Button>
               </div>
-            </div>
+            </div>            
             <div>
               <Label>Connection</Label>
               <div className="flex gap-2">
@@ -285,6 +369,7 @@ const NetworkSimulatorUI = () => {
           </div>
         </CardContent>
       </Card>
+      
 
       <Card className="mb-4">
         <CardHeader>
